@@ -1,0 +1,121 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Trivial tagged stack that proves the deploy path end to end. Carries the full cornell:* tagging convention so the inventory and dashboard work has something real to read.'
+
+Parameters:
+
+  # Metadata Parameters
+
+  Application:
+    Default: 'aidlc'
+    AllowedPattern: '[a-z0-9-]{1,10}'
+    Description: 'Name used for billing and other tracking/identification purposes'
+    Type: 'String'
+
+  Environment:
+    Default: 'main'
+    AllowedPattern: '[a-z0-9]{1,4}'
+    Description: 'Name of the deployment branch'
+    Type: 'String'
+
+  # Tagging Convention Parameters
+  #
+  # cornell:owner, cornell:blueprint, cornell:blueprint-version and cornell:deployment-id
+  # are required on every resource. Owner and deployment id vary per deployment; blueprint
+  # name and version are properties of this template, so they live here as defaults and are
+  # bumped in the PR that changes the blueprint.
+
+  Owner:
+    Default: 'ai-sei'
+    AllowedPattern: '.{1,128}'
+    Description: 'Who owns this deployment (cornell:owner)'
+    Type: 'String'
+
+  BlueprintVersion:
+    Default: '0.1.0'
+    AllowedPattern: '[0-9]+\.[0-9]+\.[0-9]+'
+    Description: 'Version of the hello-world blueprint (cornell:blueprint-version)'
+    Type: 'String'
+
+  # Pipeline Provided Parameters
+
+  SourceCommitId:
+    Default: 'unknown'
+    AllowedPattern: '.{1,64}'
+    Description: 'Commit the pipeline deployed, passed through as #{GitRepository.CommitId}. Defaults to a placeholder so the template also deploys by hand.'
+    Type: 'String'
+
+Resources:
+
+  # A real, taggable, near-free resource. Exists so tag-based inventory has something to
+  # find and so the deploy path is proven against an actual resource creation.
+
+  HelloWorldBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub '${Application}-${Environment}-hello-world-${AWS::AccountId}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'AES256'
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: 'BucketOwnerEnforced'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: 'Application'
+          Value: !Ref 'Application'
+        - Key: 'Environment'
+          Value: !Ref 'Environment'
+        - Key: 'Resource'
+          Value: 's3-bucket-hello-world'
+        - Key: 'cornell:owner'
+          Value: !Ref 'Owner'
+        - Key: 'cornell:blueprint'
+          Value: 'hello-world'
+        - Key: 'cornell:blueprint-version'
+          Value: !Ref 'BlueprintVersion'
+        - Key: 'cornell:deployment-id'
+          Value: !Sub '${Application}-${Environment}-hello-world'
+
+  # Records which commit produced the running stack. Reading this back is the cheapest
+  # proof that a merge actually flowed through to a deployed resource.
+
+  HelloWorldDeploymentMarker:
+    Type: 'AWS::SSM::Parameter'
+    Properties:
+      Name: !Sub '/${Application}/${Environment}/hello-world/deployed-commit'
+      Description: 'Commit id of the last pipeline deploy of the hello-world blueprint'
+      Tier: 'Standard'
+      Type: 'String'
+      Value: !Ref 'SourceCommitId'
+      # AWS::SSM::Parameter takes tags as a map, not a list of Key/Value pairs.
+      Tags:
+        Application: !Ref 'Application'
+        Environment: !Ref 'Environment'
+        Resource: 'ssm-parameter-hello-world-deployment-marker'
+        'cornell:owner': !Ref 'Owner'
+        'cornell:blueprint': 'hello-world'
+        'cornell:blueprint-version': !Ref 'BlueprintVersion'
+        'cornell:deployment-id': !Sub '${Application}-${Environment}-hello-world'
+
+Outputs:
+
+  DeploymentId:
+    Description: 'Value of the cornell:deployment-id tag on every resource in this stack'
+    Value: !Sub '${Application}-${Environment}-hello-world'
+
+  BlueprintVersion:
+    Description: 'Value of the cornell:blueprint-version tag'
+    Value: !Ref 'BlueprintVersion'
+
+  DeployedCommitId:
+    Description: 'Commit this stack was deployed from'
+    Value: !Ref 'SourceCommitId'
+
+  BucketName:
+    Description: 'The tagged bucket this blueprint creates'
+    Value: !Ref 'HelloWorldBucket'
