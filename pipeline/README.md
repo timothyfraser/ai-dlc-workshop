@@ -8,7 +8,7 @@ from blueprint subdirectories rather than one application.
 |---|---|
 | `pipeline.yml` | CodePipeline, CodeBuild project, ECR repository and the IAM roles for all of it. |
 | `stacks.yml` | Registry of every CloudFormation template in the repo. |
-| `validate_stacks.py` | Enforces that `stacks.yml` and the filesystem agree. Run by PR checks. |
+| `validate_stacks.py` | Enforces that `stacks.yml`, the filesystem and `pipeline.yml` agree. Run by PR checks. |
 | `codebuild.yml` | Buildspec for container image builds. Ready, not yet wired to a stage. |
 
 ## How a merge becomes a deployment
@@ -26,6 +26,13 @@ merge to main
 `Environment` is the branch name, and the Source stage tracks the branch of that name. So
 `Environment=main` is what makes "merges to main deploy", and a `test` branch deployed with
 `Environment=test` gets its own parallel pipeline and its own `aidlc-test-*` stacks.
+
+`Environment` has `AllowedPattern: '[a-z0-9]{1,4}'` — **four characters, no hyphens**, because
+it is a component of every stack name and of the `stack/${Application}-${Environment}*` prefix
+that `BuildPipelineRole` scopes to. `test` fits with nothing to spare; `staging` or
+`feature-x` fail CloudFormation's parameter validation before anything is created. Pick a short
+branch name for a parallel environment, or widen the pattern in both `pipeline.yml` and every
+blueprint template together.
 
 Note what CodePipeline does *not* give you: the GitHub side is what makes "a merge" mean "an
 approved PR". Without branch protection this pipeline happily deploys a direct push to main.
@@ -68,6 +75,13 @@ cannot be deployed by the pipeline. Same for the CodeBuild project name prefix.
 Stages are static CloudFormation, so `stacks.yml` and the pipeline actions are mirrored by
 hand. That is on purpose — generating stages from the registry would be the framework the
 workshop spec says not to build.
+
+Mirrored by hand, but **not** unchecked. Skipping step 3 used to be invisible: the PR went
+green, all three pipeline stages reported `Succeeded`, and no stack appeared, because nothing
+had been asked to deploy one. `validate_stacks.py` now fails a `deployed_by: pipeline` entry
+that no action deploys, and an action whose template is unregistered. If a template genuinely
+should not be pipeline-deployed, register it `deployed_by: manual` and say why in its
+`description`.
 
 ## Adding a container image build
 

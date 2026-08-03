@@ -27,8 +27,10 @@ Owner and deployment id vary per deployment and arrive as stack parameters. Blue
 and version are properties of the template itself: hardcode the name, and bump the version
 default in the same PR that changes the blueprint.
 
-**Registered in `pipeline/stacks.yml`.** Unregistered templates are not linted by PR checks
-and PR checks fail on finding one.
+**Registered in `pipeline/stacks.yml`, and wired to an action in `pipeline/pipeline.yml`.**
+Unregistered templates are not linted by PR checks and PR checks fail on finding one. A
+template registered `deployed_by: pipeline` with no action also fails — without that check it
+would deploy nothing while the PR and every pipeline stage still reported success.
 
 **Every parameter passed explicitly by the pipeline.** A blueprint should deploy identically
 by hand and through the pipeline. Parameter defaults exist to make a manual deploy possible,

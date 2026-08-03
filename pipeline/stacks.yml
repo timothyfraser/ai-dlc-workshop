@@ -9,9 +9,13 @@
 #   pipeline  deployed by pipeline/pipeline.yml on merge to the tracked branch
 #   manual    chicken-and-egg bootstrap, run by hand once per account
 #
-# pipeline/validate_stacks.py enforces that this file and the filesystem agree in both
-# directions, and PR checks cfn-lint everything listed here. Registering a new template is
-# therefore what makes it linted -- add the entry in the same PR as the template.
+# pipeline/validate_stacks.py enforces two invariants, each in both directions: this file
+# against the filesystem, and this file against the CloudFormation actions in pipeline.yml.
+# PR checks cfn-lint everything listed here, so registering a new template is what makes it
+# linted -- add the entry in the same PR as the template.
+#
+# A 'pipeline' entry with no action in pipeline.yml is an error, because it would deploy
+# nothing while every check and every pipeline stage still reported success.
 
 templates:
 
